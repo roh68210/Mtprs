@@ -132,7 +132,7 @@ async def upload_handler(bot: Client, m: Message):
                     text = await resp.text()
                     url = re.search(r"(https://.*?playlist.m3u8.*?)\"", text).group(1)
 
-        # ClassPlus: only if contentHashIdl exists, otherwise direct download
+        # ClassPlus with contentHashIdl
         elif any(x in url for x in ["classplusapp", "testbook.com", "media-cdn.classplusapp.com/drm"]):
             if working_token.lower() == "no":
                 await m.reply_text(f"⚠️ Token required, skipping: {links[i][0]}")
@@ -156,7 +156,7 @@ async def upload_handler(bot: Client, m: Message):
                 try:
                     res = requests.get("https://api.classplusapp.com/cams/uploader/video/jw-signed-url", params=params, headers=headers).json()
                     if 'error' in res or 'Error' in res:
-                        await m.reply_text(f"❌ ClassPlus API error: {res.get('error', res.get('Error', 'Invalid token'))}\nPlease check your token.")
+                        await m.reply_text(f"❌ ClassPlus API error: {res.get('error', res.get('Error', 'Invalid token'))}")
                         continue
                     url = res.get('drmUrls', {}).get('manifestUrl') or res.get('url')
                     if not url:
@@ -180,7 +180,7 @@ async def upload_handler(bot: Client, m: Message):
             id_ = url.split("/")[-2]
             url = f"https://d26g5bnklkwsh4.cloudfront.net/{id_}/master.m3u8"
 
-        # ========== NO CONVERSION: .mpd remains .mpd (yt-dlp handles it) ==========
+        # No .mpd to .m3u8 conversion for ClassPlus (yt-dlp handles .mpd)
 
         name1 = links[i][0].replace("\t", "").replace(":", "").replace("/", "").replace("+", "").replace("#", "").replace("|", "").replace("@", "").replace("*", "").replace(".", "").replace("https", "").replace("http", "").strip()
         name = f'{str(count).zfill(3)}) {name1[:60]}'
@@ -229,16 +229,19 @@ async def main():
         site = web.TCPSite(runner, "0.0.0.0", PORT)
         await site.start()
         print(f"Web server started on port {PORT}")
+        await asyncio.Future()  # keep running
+
+# ========== FIXED MAIN STARTUP (Render compatible) ==========
+async def start_all():
+    await bot.start()
+    print("Bot started ✅")
+    if WEBHOOK:
+        await main()  # runs web server forever
+    else:
+        await asyncio.Future()  # keep bot alive
 
 if __name__ == "__main__":
-    print("Bot starting...")
-    loop = asyncio.get_event_loop()
-    loop.create_task(bot.start())
-    if WEBHOOK:
-        loop.create_task(main())
     try:
-        loop.run_forever()
+        asyncio.run(start_all())
     except KeyboardInterrupt:
-        pass
-    finally:
-        loop.stop()
+        print("Bot stopped.")
